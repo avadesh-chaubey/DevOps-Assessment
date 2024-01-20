@@ -20,37 +20,22 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+    # Setup gcloud CLI
     - uses: google-github-actions/auth@v2
       with: 
+        workload_identity_provider: 
         project_id: ${{ secrets.GKE_PROJECT }}
-#        service_account: ${{ secrets.GKE_SA_KEY }}
         credentials_json: ${{ secrets.GKE_SA_KEY }}
-      env: 
-        KUBE_CONFIG: ${{ runner.workspace }}/kubeconfig.yaml
-    # Setup gcloud CLI
     - uses: google-github-actions/setup-gcloud@v2
-    #google-github-actions/setup-gcloud@master
       with:
         version: 'latest'
-#        service_account_key: ${{ secrets.GKE_SA_KEY }}
+        install_components: gke-gcloud-auth-plugin
+    - uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: $GKE_CLUSTER
+        location: $GKE_ZONE
         project_id: ${{ secrets.GKE_PROJECT }}
-      env:
-        KUBE_CONFIG: ${{ runner.workspace }}/kubeconfig.yaml
-
-    # Configure Docker to use the gcloud command-line tool as a credential
-    # helper for authentication
-    - run: |-
-        gcloud components install gke-gcloud-auth-plugin
-        gcloud auth activate-service-account kubernetes@kubernetes-411705.iam.gserviceaccount.com --key-file=key.json
-
-    # - uses: google-github-actions/get-gke-credentials@v2
-    #   with:
-    #     cluster_name: cluster-1
-    #     location: asia-south1-a
-    #     project_id: ${{ secrets.GKE_PROJECT }}
-    #    credentials: ${{ secrets.GKE_SA_KEY }}
-    - run: |-
-        gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+        use_internal_ip: 172.16.0.2
     # Build the Docker image
     - name: Build
       run: |-
@@ -62,7 +47,8 @@ jobs:
     # Push the Docker image to Google Container Registry
     - name: Publish
       run: |-
-        cat key.json | docker login -u _json_key --password-stdin https://gcr.io
+        gcloud auth configure-docker
+        docker login https://gcr.io
         docker push "gcr.io/$PROJECT_ID/$IMAGE:$GITHUB_SHA"
     # Set up kustomize
     - name: Set up Kustomize
@@ -71,7 +57,6 @@ jobs:
         chmod u+x ./kustomize
     # Deploy the Docker image to the GKE cluster
     - name: Deploy
-#      run: kubectl apply -f deployment.yaml
       run: |-
         kustomize edit set image gcr.io/PROJECT_ID/IMAGE:TAG=gcr.io/$PROJECT_ID/$IMAGE:$GITHUB_SHA
         kustomize build . | kubectl apply -f -
