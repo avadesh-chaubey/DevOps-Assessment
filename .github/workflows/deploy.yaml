@@ -35,7 +35,7 @@ jobs:
         cluster_name: ${{ env.GKE_CLUSTER }}
         location: ${{ env.GKE_ZONE }}
         project_id: ${{ secrets.GKE_PROJECT }}
-        use_internal_ip: 172.16.0.2
+        use_internal_ip: yes
     # Build the Docker image
     - name: Build
       run: |-
